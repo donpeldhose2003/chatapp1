@@ -6,6 +6,10 @@ import 'login_screen.dart';
 import 'personal_chat_screen.dart';
 import 'status_screen.dart';
 import 'group_chat_screen.dart';
+import 'profile_screen.dart'; 
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+
 
 class ChatScreen extends StatefulWidget {
   @override
@@ -20,13 +24,54 @@ class _ChatScreenState extends State<ChatScreen> {
   String _searchQuery = "";
   List<DocumentSnapshot> _combinedList = [];
   bool _isLoading = true;
+  
+  // Track unread message counts
+  Map<String, int> _unreadCounts = {};
 
   @override
   void initState() {
     super.initState();
     _user = _auth.currentUser;
     _loadData();
+    _setupUnreadMessagesListener();
   }
+Future<void> sendPushNotification(String token, String sender, String message) async {
+  try {
+    const String serverKey = 'YOUR_SERVER_KEY_HERE'; // Get from Firebase Console
+
+    final Map<String, dynamic> data = {
+      "to": token,
+      "notification": {
+        "title": "New message from $sender",
+        "body": message,
+        "click_action": "FLUTTER_NOTIFICATION_CLICK",
+        "sound": "default"
+      },
+      "data": {
+        "sender": sender,
+        "message": message
+      }
+    };
+
+    final response = await http.post(
+      Uri.parse("https://fcm.googleapis.com/fcm/send"),
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "key=$serverKey",
+      },
+      body: jsonEncode(data),
+    );
+
+    if (response.statusCode == 200) {
+      print("✅ Push notification sent successfully.");
+    } else {
+      print("❌ Failed to send push notification: ${response.body}");
+    }
+  } catch (e) {
+    print("❌ Error sending push notification: $e");
+  }
+}
+
 
   // ✅ Load data (users and groups) in the background
   Future<void> _loadData() async {
@@ -59,6 +104,43 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  // ✅ Set up listeners for unread messages
+  void _setupUnreadMessagesListener() {
+    final userId = _auth.currentUser!.uid;
+    
+    // Listen for personal chat unread messages
+    _firestore
+        .collection('unreadMessages')
+        .doc(userId)
+        .collection('personal')
+        .snapshots()
+        .listen((snapshot) {
+      if (mounted) {
+        setState(() {
+          for (var doc in snapshot.docs) {
+            _unreadCounts[doc.id] = doc['count'] ?? 0;
+          }
+        });
+      }
+    });
+
+    // Listen for group chat unread messages
+    _firestore
+        .collection('unreadMessages')
+        .doc(userId)
+        .collection('groups')
+        .snapshots()
+        .listen((snapshot) {
+      if (mounted) {
+        setState(() {
+          for (var doc in snapshot.docs) {
+            _unreadCounts[doc.id] = doc['count'] ?? 0;
+          }
+        });
+      }
+    });
+  }
+
   void _logout() async {
     await AuthService().logout();
     Navigator.pushReplacement(
@@ -88,54 +170,61 @@ class _ChatScreenState extends State<ChatScreen> {
       _loadData(); // Reload data after creating a group
     }
   }
-
-  @override
-  Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 3, // Chat, Status, Call Tabs
-      child: Scaffold(
-        appBar: AppBar(
-  title: Text(
-    'Chat App',
-    style: TextStyle(color: Colors.white), // White text
-  ),
-  backgroundColor: Colors.deepPurple, // Background color remains
-  bottom: TabBar(
-    labelColor: Colors.white, // Active tab text color
-    unselectedLabelColor: Colors.white70, // Slightly faded for inactive tabs
-    indicatorColor: Colors.white, // Underline color
-    tabs: [
-      Tab(text: "Chat"),
-      Tab(text: "Status"),
-      Tab(text: "Call"),
-    ],
-  ),
-  actions: [
-    IconButton(
-      icon: Icon(Icons.logout, color: Colors.white), // White icon
-      onPressed: _logout,
-    ),
-  ],
-  leading: Padding(
-    padding: const EdgeInsets.all(8.0),
-    child: Icon(Icons.chat, color: Colors.white), // White icon
-  ),
-),
-
-        body: TabBarView(
-          children: [
-            _buildChatTab(), // Chat Tab
-            StatusScreen(), // Status Tab
-            Center(child: Text("Call feature coming soon!")), // Call Tab
+@override
+Widget build(BuildContext context) {
+  return DefaultTabController(
+    length: 3, // Chat, Status, Call Tabs
+    child: Scaffold(
+      appBar: AppBar(
+        title: Text(
+          'Chat App',
+          style: TextStyle(color: Colors.white), // White text
+        ),
+        backgroundColor: Colors.deepPurple, // Background color remains
+        bottom: TabBar(
+          labelColor: Colors.white, // Active tab text color
+          unselectedLabelColor: Colors.white70, // Slightly faded for inactive tabs
+          indicatorColor: Colors.white, // Underline color
+          tabs: [
+            Tab(text: "Chat"),
+            Tab(text: "Status"),
+            Tab(text: "Call"),
           ],
         ),
-        floatingActionButton: FloatingActionButton(
-          onPressed: () => _createGroup(context),
-          child: Icon(Icons.group_add),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.person, color: Colors.white), // Profile icon
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => ProfileScreen()),
+              );
+            },
+          ),
+          IconButton(
+            icon: Icon(Icons.logout, color: Colors.white), // Logout icon
+            onPressed: _logout,
+          ),
+        ],
+        leading: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Icon(Icons.chat, color: Colors.white), // White icon
         ),
       ),
-    );
-  }
+      body: TabBarView(
+        children: [
+          _buildChatTab(), // Chat Tab
+          StatusScreen(), // Status Tab
+          Center(child: Text("Call feature coming soon!")), // Call Tab
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _createGroup(context),
+        child: Icon(Icons.group_add),
+      ),
+    ),
+  );
+}
 
   // ✅ Chat Tab (Combined Users and Groups List)
   Widget _buildChatTab() {
@@ -162,7 +251,7 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  // ✅ Build Combined List (Users and Groups)
+  // ✅ Build Combined List (Users and Groups) with notification badges
   Widget _buildCombinedList() {
     var filteredList = _combinedList.where((item) {
       var data = item.data() as Map<String, dynamic>;
@@ -179,15 +268,39 @@ class _ChatScreenState extends State<ChatScreen> {
       itemBuilder: (context, index) {
         var item = filteredList[index];
         var data = item.data() as Map<String, dynamic>;
+        int unreadCount = _unreadCounts[item.id] ?? 0;
 
         if (data.containsKey('groupName')) {
-          // Display group
+          // Display group with notification badge
           return ListTile(
-            leading: CircleAvatar(
+            leading: CircleAvatar(backgroundImage: NetworkImage('https://i.ibb.co/FkH3PSYz/profile.jpg'),
               child: Icon(Icons.group),
             ),
             title: Text(data['groupName']),
-            onTap: () {
+            trailing: unreadCount > 0
+                ? Container(
+                    padding: EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.deepPurple,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Text(
+                      unreadCount > 99 ? '99+' : unreadCount.toString(),
+                      style: TextStyle(color: Colors.white, fontSize: 12),
+                    ),
+                  )
+                : null,
+            onTap: () async {
+              // Reset unread count when entering the chat
+              if (unreadCount > 0) {
+                await _firestore
+                    .collection('unreadMessages')
+                    .doc(_auth.currentUser!.uid)
+                    .collection('groups')
+                    .doc(item.id)
+                    .delete();
+              }
+              
               Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -200,7 +313,7 @@ class _ChatScreenState extends State<ChatScreen> {
             },
           );
         } else {
-          // Display user
+          // Display user with notification badge
           bool isMe = data['email'] == _user?.email;
           if (isMe) {
             return Container(); // Don't show the current user
@@ -212,7 +325,30 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
             title: Text(data['username'] ?? "Unknown"),
             subtitle: Text(data['status'] ?? "No status set"),
-            onTap: () {
+            trailing: unreadCount > 0
+                ? Container(
+                    padding: EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.deepPurple,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Text(
+                      unreadCount > 99 ? '99+' : unreadCount.toString(),
+                      style: TextStyle(color: Colors.white, fontSize: 12),
+                    ),
+                  )
+                : null,
+            onTap: () async {
+              // Reset unread count when entering the chat
+              if (unreadCount > 0) {
+                await _firestore
+                    .collection('unreadMessages')
+                    .doc(_auth.currentUser!.uid)
+                    .collection('personal')
+                    .doc(item.id)
+                    .delete();
+              }
+              
               Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -293,25 +429,29 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              if (_groupNameController.text.isNotEmpty && _selectedUsers.isNotEmpty) {
-                // Add the current user to the members list
-                _selectedUsers.add(_auth.currentUser!.uid);
+  if (_groupNameController.text.isNotEmpty && _selectedUsers.isNotEmpty) {
+    // Add the current user to the members list
+    _selectedUsers.add(_auth.currentUser!.uid);
 
-                // Create the group
-                await _firestore.collection('groups').add({
-                  'groupName': _groupNameController.text,
-                  'createdBy': _auth.currentUser!.uid,
-                  'members': _selectedUsers,
-                });
+    // Get current user's email
+    String? userEmail = _auth.currentUser?.email;
 
-                // Navigate back with a success result
-                Navigator.pop(context, true);
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text("Please enter a group name and select at least one member.")),
-                );
-              }
-            },
+    // Create the group
+    await _firestore.collection('groups').add({
+      'groupName': _groupNameController.text,
+      'createdBy': userEmail,  // Store the email instead of UID
+      'members': _selectedUsers,
+    });
+
+    // Navigate back with a success result
+    Navigator.pop(context, true);
+  } else {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("Please enter a group name and select at least one member.")),
+    );
+  }
+},
+
             child: Text("Create Group"),
           ),
         ],
