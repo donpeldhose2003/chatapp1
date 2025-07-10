@@ -35,14 +35,23 @@ A real-time **Chat Application** built using **Flutter**, **Firebase Auth**, and
 ## 📁 Project Structure
 
 lib/
+
 ├── auth_service.dart
+
 ├── main.dart
+
 ├── login_screen.dart
+
 ├── chat_screen.dart
+
 ├── personal_chat_screen.dart
+
 ├── group_chat_screen.dart
+
 ├── status_screen.dart
+
 ├── create_group_screen.dart
+
 └── models/
 
 
