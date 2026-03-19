@@ -252,101 +252,156 @@ Future<void> sendPushNotification(String token, String sender, String message) a
 
   /// ✅ Message Item Builder with Long Press to Delete
   Widget _buildMessageItem(DocumentSnapshot message) {
-    Map<String, dynamic>? data = message.data() as Map<String, dynamic>?;
-    if (data == null) return const SizedBox.shrink();
+  Map<String, dynamic>? data = message.data() as Map<String, dynamic>?;
+  if (data == null) return const SizedBox.shrink();
 
-    bool isMe = data['sender'] == _user?.email;
-    Timestamp timestamp = data['timestamp'] ?? Timestamp.now();
-    String messageId = message.id; // Get Firestore document ID
+  final currentUserId = _user?.uid;
+  final deletedFor = Map<String, dynamic>.from(data['deletedFor'] ?? {});
+  
+  // 👇 Skip rendering if message is deleted for current user
+  if (deletedFor.containsKey(currentUserId) && deletedFor[currentUserId] == true) {
+    return const SizedBox.shrink();
+  }
 
-    String formattedTime;
-    DateTime dateTime = timestamp.toDate();
-    DateTime now = DateTime.now();
+  bool isMe = data['sender'] == _user?.email;
+  Timestamp timestamp = data['timestamp'] ?? Timestamp.now();
+  String messageId = message.id;
 
-    if (dateTime.day == now.day && dateTime.month == now.month && dateTime.year == now.year) {
-      formattedTime = DateFormat('h:mm a').format(dateTime);
-    } else {
-      formattedTime = DateFormat('MMM d, yyyy h:mm a').format(dateTime);
-    }
+  String formattedTime;
+  DateTime dateTime = timestamp.toDate();
+  DateTime now = DateTime.now();
 
-    return GestureDetector(
-      onLongPress: () {
-        if (isMe) {
-          _showDeleteConfirmation(messageId);
-        }
-      },
-      child: Align(
-        alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-        child: Container(
-          margin: const EdgeInsets.symmetric(vertical: 5, horizontal: 10),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: isMe ? Colors.blueAccent : Colors.grey[300],
-            borderRadius: BorderRadius.circular(15),
-          ),
-          child: Column(
-            crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-            children: [
-              Text(
-                data['text'] ?? "",
-                style: const TextStyle(fontSize: 16),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                formattedTime,
-                style: TextStyle(fontSize: 12, color: isMe ? Colors.white70 : Colors.black54),
-              ),
-            ],
-          ),
+  if (dateTime.day == now.day && dateTime.month == now.month && dateTime.year == now.year) {
+    formattedTime = DateFormat('h:mm a').format(dateTime);
+  } else {
+    formattedTime = DateFormat('MMM d, yyyy h:mm a').format(dateTime);
+  }
+
+  return GestureDetector(
+    onLongPress: () {
+      if (isMe) {
+        _showDeleteConfirmation(messageId);
+      }
+    },
+    child: Align(
+      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 5, horizontal: 10),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isMe ? Colors.blueAccent : Colors.grey[300],
+          borderRadius: BorderRadius.circular(15),
+        ),
+        child: Column(
+          crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          children: [
+            Text(
+              data['text'] ?? "",
+              style: const TextStyle(fontSize: 16),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              formattedTime,
+              style: TextStyle(fontSize: 12, color: isMe ? Colors.white70 : Colors.black54),
+            ),
+          ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
+
 
   /// ✅ Show delete confirmation dialog
   void _showDeleteConfirmation(String messageId) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Delete Message"),
-        content: const Text("Are you sure you want to delete this message?"),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Cancel"),
-          ),
-          TextButton(
-            onPressed: () async {
-              try {
-                await _firestore.collection('messages').doc(messageId).delete();
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text("Delete Message"),
+      content: const Text("Are you sure you want to delete this message?"),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text("Cancel"),
+        ),
+        TextButton(
+          onPressed: () async {
+            try {
+              // Delete for me (only remove the message for the current user)
+              await _deleteMessageForUser(messageId);
+              Navigator.pop(context);
+            } catch (e) {
+              print("❌ Error deleting message: $e");
+            }
+          },
+          child: const Text("Delete for Me", style: TextStyle(color: Colors.red)),
+        ),
+        TextButton(
+          onPressed: () async {
+            try {
+              // Delete for everyone (remove the message for all users in the chat)
+              await _deleteMessageForEveryone(messageId);
+              Navigator.pop(context);
+            } catch (e) {
+              print("❌ Error deleting message: $e");
+            }
+          },
+          child: const Text("Delete for Everyone", style: TextStyle(color: Colors.red)),
+        ),
+      ],
+    ),
+  );
+}
 
-                // ✅ Check if any messages remain in the chat
-                String chatId = _getChatId(_user!.email!, widget.userEmail);
-                QuerySnapshot messagesSnapshot = await _firestore
-                    .collection('messages')
-                    .where('chatId', isEqualTo: chatId)
-                    .orderBy('timestamp', descending: true)
-                    .get();
+// Delete message for the current user (just remove from the user's view)
+Future<void> _deleteMessageForUser(String messageId) async {
+  try {
+    final currentUserId = _user!.uid;
 
-                if (messagesSnapshot.docs.isNotEmpty) {
-                  var lastMessage = messagesSnapshot.docs.first;
-                  await _firestore.collection('chats').doc(chatId).update({
-                    'lastMessage': lastMessage['text'],
-                    'lastMessageTimestamp': lastMessage['timestamp'],
-                  });
-                } else {
-                  await _firestore.collection('chats').doc(chatId).delete();
-                }
+    // Instead of deleting the message, mark it as deleted for the current user
+    await _firestore.collection('messages').doc(messageId).update({
+      'deletedFor.$currentUserId': true, // 👈 Document field per user
+    });
 
-                Navigator.pop(context);
-              } catch (e) {
-                print("❌ Error deleting message: $e");
-              }
-            },
-            child: const Text("Delete", style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
+    // No need to update or delete chat document on delete-for-me
+  } catch (e) {
+    print("❌ Error deleting message for the user: $e");
   }
+}
+
+// Delete message for everyone (remove from all participants' chat history)
+Future<void> _deleteMessageForEveryone(String messageId) async {
+  try {
+    // Fetch the message to get the chatId and sender/receiver information
+    DocumentSnapshot messageDoc =
+        await _firestore.collection('messages').doc(messageId).get();
+
+    if (messageDoc.exists) {
+      String chatId = messageDoc['chatId'];
+      
+      // Delete the message for all participants in the chat (sender and receiver)
+      await _firestore.collection('messages').doc(messageId).delete();
+
+      // ✅ Check if any messages remain in the chat
+      QuerySnapshot messagesSnapshot = await _firestore
+          .collection('messages')
+          .where('chatId', isEqualTo: chatId)
+          .orderBy('timestamp', descending: true)
+          .get();
+
+      if (messagesSnapshot.docs.isNotEmpty) {
+        var lastMessage = messagesSnapshot.docs.first;
+        await _firestore.collection('chats').doc(chatId).update({
+          'lastMessage': lastMessage['text'],
+          'lastMessageTimestamp': lastMessage['timestamp'],
+        });
+      } else {
+        await _firestore.collection('chats').doc(chatId).delete();
+      }
+    }
+  } catch (e) {
+    print("❌ Error deleting message for everyone: $e");
+  }
+}
+
 }

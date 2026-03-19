@@ -118,8 +118,8 @@ class _StatusScreenState extends State<StatusScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Statuses")),
-      body: Column(
+      body: SafeArea(
+        child: Column(
         children: [
           if (_isUploading) LinearProgressIndicator(),
           ElevatedButton(
@@ -161,6 +161,7 @@ class _StatusScreenState extends State<StatusScreen> {
             ),
           ),
         ],
+      ),
       ),
     );
   }

@@ -1,0 +1,11 @@
+{
+  "name": "chatapp1-analytics-functions",
+  "version": "1.0.0",
+  "engines": {
+    "node": "16"
+  },
+  "dependencies": {
+    "firebase-admin": "^11.10.1",
+    "firebase-functions": "^4.3.0"
+  }
+}

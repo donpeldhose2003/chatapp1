@@ -121,12 +121,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
         children: [
           CircleAvatar(
             radius: 50,
-            backgroundImage: _profilePic.isNotEmpty
-                ? NetworkImage(_profilePic)
-                : AssetImage("assets/default_avatar.png") as ImageProvider,
-            child: _profilePic.isEmpty
-                ? Icon(Icons.person, size: 40, color: Colors.white)
-                : null,
+            backgroundColor: Colors.deepPurple,
+            child: _profilePic.isNotEmpty
+                ? ClipOval(
+                    child: Image.network(
+                      _profilePic,
+                      width: 100,
+                      height: 100,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        // If the network image fails to load, fall back to initial
+                        return Center(child: Text(_avatarInitial(), style: TextStyle(fontSize: 36, color: Colors.white)));
+                      },
+                    ),
+                  )
+                : Text(_avatarInitial(), style: TextStyle(fontSize: 36, color: Colors.white)),
           ),
           Positioned(
             bottom: 0,
@@ -154,6 +163,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       ),
     );
+  }
+
+  // Determine avatar initial from username, displayName or email
+  String _avatarInitial() {
+    final name = _usernameController.text.trim();
+    if (name.isNotEmpty) return name[0].toUpperCase();
+    if (_user != null && _user!.displayName != null && _user!.displayName!.isNotEmpty) {
+      return _user!.displayName![0].toUpperCase();
+    }
+    if (_user != null && _user!.email != null && _user!.email!.isNotEmpty) {
+      return _user!.email![0].toUpperCase();
+    }
+    return '?';
   }
 
   // ✅ UI: Settings List Items

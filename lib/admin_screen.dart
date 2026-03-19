@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'login_screen.dart';
 import 'monitor_chats_tab.dart';
 import 'control_groups_tab.dart';
+import 'analytics_screen.dart';
 
 class AdminScreen extends StatefulWidget {
   @override
@@ -46,9 +47,23 @@ class _AdminScreenState extends State<AdminScreen> {
           title: Text('Admin Dashboard'),
           backgroundColor: Colors.redAccent,
           actions: [
-            IconButton(
-              icon: Icon(Icons.logout),
-              onPressed: _logout,
+            // Admin profile icon with menu
+            PopupMenuButton<String>(
+              icon: CircleAvatar(
+                backgroundColor: Colors.white24,
+                child: Icon(Icons.admin_panel_settings, color: Colors.white),
+              ),
+              onSelected: (value) {
+                if (value == 'analytics') {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => AnalyticsScreen()));
+                } else if (value == 'logout') {
+                  _logout();
+                }
+              },
+              itemBuilder: (context) => [
+                PopupMenuItem(value: 'analytics', child: Text('Analytics & Reporting')),
+                PopupMenuItem(value: 'logout', child: Text('Logout')),
+              ],
             ),
           ],
           bottom: TabBar(

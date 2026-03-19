@@ -11,6 +11,35 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 
+
+  // Build avatar widget: show network image when available, else show initial.
+  Widget _buildAvatar({String? profileUrl, required String name, bool isGroup = false}) {
+    final initial = (name.isNotEmpty) ? name.trim()[0].toUpperCase() : (isGroup ? 'G' : '?');
+    if (profileUrl != null && profileUrl.isNotEmpty) {
+      return CircleAvatar(
+        radius: 20,
+        backgroundColor: Colors.transparent,
+        child: ClipOval(
+          child: Image.network(
+            profileUrl,
+            width: 40,
+            height: 40,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              return Center(child: Text(initial, style: TextStyle(fontSize: 16, color: Colors.white)));
+            },
+          ),
+        ),
+      );
+    }
+
+    // fallback: colored CircleAvatar with initial
+    return CircleAvatar(
+      radius: 20,
+      backgroundColor: Colors.deepPurple,
+      child: Text(initial, style: TextStyle(fontSize: 16, color: Colors.white)),
+    );
+  }
 class ChatScreen extends StatefulWidget {
   @override
   _ChatScreenState createState() => _ChatScreenState();
@@ -273,8 +302,10 @@ Widget build(BuildContext context) {
         if (data.containsKey('groupName')) {
           // Display group with notification badge
           return ListTile(
-            leading: CircleAvatar(backgroundImage: NetworkImage('https://i.ibb.co/FkH3PSYz/profile.jpg'),
-              child: Icon(Icons.group),
+            leading: _buildAvatar(
+              profileUrl: data['groupIcon'],
+              name: data['groupName'],
+              isGroup: true,
             ),
             title: Text(data['groupName']),
             trailing: unreadCount > 0
@@ -319,9 +350,9 @@ Widget build(BuildContext context) {
             return Container(); // Don't show the current user
           }
           return ListTile(
-            leading: CircleAvatar(
-              backgroundImage: NetworkImage(
-                  data['profilePic'] ?? 'https://via.placeholder.com/150'),
+            leading: _buildAvatar(
+              profileUrl: data['profilePic'],
+              name: data['username'] ?? data['email'] ?? 'U',
             ),
             title: Text(data['username'] ?? "Unknown"),
             subtitle: Text(data['status'] ?? "No status set"),
