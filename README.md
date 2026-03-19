@@ -1,16 +1,57 @@
-# chatapp1
+# 💬 Flutter Chat Application
 
-A new Flutter project.
+A real-time **Chat Application** built using **Flutter**, **Firebase Auth**, and **Cloud Firestore**. It supports **personal chats**, **group messaging**, **status updates**, and user authentication. Designed with responsiveness and simplicity in mind.
 
-## Getting Started
+---
 
-This project is a starting point for a Flutter application.
+## 🔥 Features
 
-A few resources to get you started if this is your first Flutter project:
+- ✅ User Authentication (Firebase Email/Password)
+- ✅ One-on-One Personal Chat
+- ✅ Group Chat with Member Selection
+- ✅ Real-time Messaging via Firestore
+- ✅ Message Timestamps
+- ✅ User Status (Like WhatsApp)
+- ✅ Group Creation and Membership Management
+- ✅ Logout Functionality
+- ✅ Responsive UI (Web & Mobile)
+- 🚧 Call tab placeholder (coming soon)
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+---
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+
+
+## 🛠️ Tools & Technologies
+
+- Flutter (Dart)
+- Firebase Auth
+- Cloud Firestore
+- Firebase Core
+- Firebase Storage (optional for profile images or statuses)
+- Provider / setState for state management
+
+---
+
+## 📁 Project Structure
+
+lib/
+
+├── auth_service.dart
+
+├── main.dart
+
+├── login_screen.dart
+
+├── chat_screen.dart
+
+├── personal_chat_screen.dart
+
+├── group_chat_screen.dart
+
+├── status_screen.dart
+
+├── create_group_screen.dart
+
+└── models/
+
+
